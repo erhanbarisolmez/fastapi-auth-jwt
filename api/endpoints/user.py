@@ -13,6 +13,7 @@ user_dependency  = Annotated[dict, Depends(get_current_user)]
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
+
 @router.get("/", status_code=status.HTTP_200_OK)
 async def user(user: user_dependency, db: db_dependency):
   if user is None:
