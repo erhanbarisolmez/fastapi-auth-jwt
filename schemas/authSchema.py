@@ -1,9 +1,18 @@
 from pydantic import BaseModel
+from datetime import datetime
 
 class CreateUserRequest(BaseModel):
-    username: str
+    firstName: str
+    lastName:str
+    email: str
+    phone: str
+    registeredDate: datetime
     password: str
+    role: str 
 
 class Token(BaseModel):
     access_token:str
     token_type:str
+    
+    
+    
