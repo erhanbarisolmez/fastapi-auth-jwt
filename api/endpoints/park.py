@@ -1,13 +1,15 @@
-from fastapi import APIRouter
-from api.deps import db_dependency
+from typing import Annotated
+from fastapi import APIRouter, Depends
+from api.deps import db_dependency, oauth2_bearer
 from schemas.parkSchema import CreateParkRequest
 from models.park import Park
+
 
 router = APIRouter(prefix="/park", tags=["park"])
 
 
 @router.post("/create_park")
-async def create_park(db: db_dependency, create_park_schema: CreateParkRequest):
+async def create_park(db: db_dependency, create_park_schema: CreateParkRequest, token: Annotated[str, Depends(oauth2_bearer)]):
     create_park_model = Park(
         park_name=create_park_schema.parkName,
         lat=create_park_schema.lat,
