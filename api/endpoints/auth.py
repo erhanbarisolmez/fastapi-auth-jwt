@@ -44,9 +44,11 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestFormC
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Could not validate user.')
-    token = create_access_token(user.email, user.id, timedelta(minutes=20))
+    
+    role = get_user_role(user)
+    token = create_access_token(user.email, user.id, role, timedelta(minutes=20))
 
-    return {'access_token': token, 'token_type': 'bearer'}
+    return {'access_token': token, 'token_type': 'bearer', 'role':role}
 
 def authenticate_user(email:str, password:str, db):
     user = db.query(Users).filter(Users.email == email).first()
@@ -56,8 +58,8 @@ def authenticate_user(email:str, password:str, db):
         return False
     return user
 
-def create_access_token(email: str, user_id: int, expires_delta: timedelta):
-    encode = {'sub': email, 'id': user_id}
+def create_access_token(email: str, user_id: int, role: str, expires_delta: timedelta):
+    encode = {'sub': email, 'id': user_id, 'role': role}
     expires = datetime.utcnow() + expires_delta
     encode.update({'exp': expires})
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -74,7 +76,10 @@ async def get_current_user(token:Annotated[str, Depends(oauth2_bearer)]):
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Coult not validate user.')
-        
+
+def get_user_role(user: Users):
+    return user.role
+
         
         
         
