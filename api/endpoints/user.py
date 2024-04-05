@@ -4,6 +4,7 @@ from .auth import get_current_user
 from  db.database import get_db
 from sqlalchemy.orm import Session
 
+
 router = APIRouter(
     prefix='/user',
     tags=['user']

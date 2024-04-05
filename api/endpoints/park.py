@@ -1,15 +1,21 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from api.deps import db_dependency, oauth2_bearer
 from schemas.parkSchema import CreateParkRequest
 from models.park import Park
-
+from .auth import get_current_user
 
 router = APIRouter(prefix="/park", tags=["park"])
 
 
-@router.post("/create_park")
-async def create_park(db: db_dependency, create_park_schema: CreateParkRequest, token: Annotated[str, Depends(oauth2_bearer)]):
+@router.post("/create_park", status_code=status.HTTP_201_CREATED)
+async def create_park(db: db_dependency, create_park_schema: CreateParkRequest): #    token: Annotated[str, Depends(oauth2_bearer)]
+
+    # if not token:
+    #     raise HTTPException(
+    #         status_code= status.HTTP_401_UNAUTHORIZED,
+    #         detail='Token is invalid or expired.'
+    #     )        
     create_park_model = Park(
         park_name=create_park_schema.parkName,
         lat=create_park_schema.lat,
@@ -27,3 +33,4 @@ async def create_park(db: db_dependency, create_park_schema: CreateParkRequest, 
     )
     db.add(create_park_model)
     db.commit()
+    return  {"message": "Successfully created a new park."}

@@ -1,6 +1,6 @@
 from datetime import timedelta, datetime
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette import status
 from models.users import Users
 from passlib.context import CryptContext
@@ -81,5 +81,10 @@ def get_user_role(user: Users):
     return user.role
 
         
-        
+
+async def get_token_authorization(authorization: str = Header(...)):
+    if not authorization.startswith("Bearer"):
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    token = authorization.split()[1]
+    return token
         
