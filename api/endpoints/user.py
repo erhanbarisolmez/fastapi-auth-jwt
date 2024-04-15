@@ -3,7 +3,7 @@ from typing import Annotated
 from .auth import get_current_user
 from  db.database import get_db
 from sqlalchemy.orm import Session
-
+from api.deps import db_dependency
 
 router = APIRouter(
     prefix='/user',
@@ -11,8 +11,6 @@ router = APIRouter(
 )
 
 user_dependency  = Annotated[dict, Depends(get_current_user)]
-db_dependency = Annotated[Session, Depends(get_db)]
-
 
 
 @router.get("/me", status_code=status.HTTP_200_OK)

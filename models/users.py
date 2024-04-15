@@ -11,5 +11,6 @@ class Users(Base):
     phone = Column(String(10), unique=True, index=True)
     registered_date = Column(DateTime, index=True )
     hashed_password = Column(String)
-    role = Column(String, nullable=True, default='user')  # user or
+    role = Column(String, nullable=True, default='user') 
+    exp = Column(String, index=True, nullable=True)
 

@@ -20,8 +20,10 @@ bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
 
 @router.post("/create_user", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency,
-                      create_user_request: CreateUserRequest):
+                      create_user_request: CreateUserRequest,
+                      create_token:Token ):
     role = create_user_request.role
+    exp = create_token.access_token
     if role is None:
         role = 'user'
     create_user_model=Users(
@@ -31,7 +33,8 @@ async def create_user(db: db_dependency,
         phone = create_user_request.phone,
         registered_date = create_user_request.registeredDate,
         hashed_password = bcrypt_context.hash(create_user_request.password),
-        role = role
+        role = role,
+        exp = exp
     )
     db.add(create_user_model)
     db.commit()
@@ -46,8 +49,11 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestFormC
                             detail='Could not validate user.')
     
     role = get_user_role(user)
-    token = create_access_token(user.email, user.id, role, timedelta(minutes=20))
-
+    token = create_access_token(user.email, user.id, role, timedelta(minutes=1))
+    if token:
+        user.exp = token
+        db.add(user)
+        db.commit()
     return {'access_token': token, 'token_type': 'bearer', 'role':role}
 
 def authenticate_user(email:str, password:str, db):
@@ -79,8 +85,6 @@ async def get_current_user(token:Annotated[str, Depends(oauth2_bearer)]):
 
 def get_user_role(user: Users):
     return user.role
-
-        
 
 async def get_token_authorization(authorization: str = Header(...)):
     if not authorization.startswith("Bearer"):

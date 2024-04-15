@@ -16,3 +16,4 @@ class CreateParkRequest(BaseModel):
   city: str
   enable: bool
   registeredDate: Optional[datetime]
+  

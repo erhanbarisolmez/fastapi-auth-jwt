@@ -9,6 +9,7 @@ class CreateUserRequest(BaseModel):
     registeredDate: datetime
     password: str
     role: str  = "user"
+    exp: str
 
 class Token(BaseModel):
     access_token:str
