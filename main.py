@@ -4,7 +4,6 @@ from models import park
 from api.main import api_router
 from fastapi.middleware.cors import CORSMiddleware
 
-
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()

@@ -15,11 +15,8 @@ async def create_park(
     db: db_dependency,
     create_park_schema: CreateParkRequest,
     token: Annotated[str, Depends(oauth2_bearer)],
-    user: CreateUserRequest = Depends[get_current_user()],  #  ...
 ):
 
-    # user_exp = user.exp
-    # refresh_exp = user_exp - timedelta(minutes=5)
 
     if not token:
         raise HTTPException(
