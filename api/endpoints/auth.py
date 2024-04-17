@@ -15,14 +15,15 @@ router = APIRouter(
 
 SECRET_KEY = '09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7'
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 1
+REFRESH_TOKEN_EXPIRE_MINUTES = 3 
 
 bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
 
 @router.post("/create_user", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency,
                       create_user_request: CreateUserRequest,
-                      create_token:Token ):
+                      create_token: Token ):
     role = create_user_request.role
     exp = create_token.access_token
     if role is None:
@@ -52,12 +53,10 @@ async def login_for_access_token(
                             detail='Could not validate user.')
     
     role = get_user_role(user)
-    token = create_access_token(user.email, user.id, role, timedelta(minutes=1))
-    if token:
-        user.exp = token
-        db.add(user)
-        db.commit()
-    return {'access_token': token, 'token_type': 'bearer', 'role':role}
+    access_token = create_access_token(user.email, user.id, role, db)
+    refresh_token = create_refresh_token(user.email, user.id, role, db)
+    
+    return {'access_token': access_token, 'token_type': 'bearer', 'role': role, 'refresh_token': refresh_token}
 
 @router.get("/email-control")
 def get_user(db: db_dependency, email: str):
@@ -76,11 +75,15 @@ def authenticate_user(email:str, password:str, db):
         return False
     return user
 
-def create_access_token(email: str, user_id: int, role: str, expires_delta: timedelta):
-    encode = {'sub': email, 'id': user_id, 'role': role}
-    expires = datetime.now(timezone.utc) + expires_delta
-    encode.update({'exp': expires})
-    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    encoded_jwt = jwt.encode({'sub': email, 'id': user_id, 'role': role, 'exp': expire.timestamp()}, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def create_refresh_token(email: str, user_id: int, role: str, db: db_dependency):
+    expire = datetime.now(timezone.utc) + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    encoded_jwt = jwt.encode({'sub': email, 'id': user_id, 'role': role, 'exp': expire.timestamp()}, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_bearer)],
@@ -95,58 +98,25 @@ async def get_current_user(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get('sub')
         user_id: int = payload.get('id')
+        token_expiry: str = payload.get('exp')
         if email is None or user_id is None:
             raise credentials_exception
-
-        # Check if access token has expired
-        if datetime.now() >= datetime.fromtimestamp(payload['exp']):
-            try:
-                # Attempt to refresh token using refresh token from payload
-                refresh_token = payload.get("refresh_token")  # Extract refresh token from access token
-                if refresh_token is not None:
-                    return await refresh_token_helper(refresh_token, user_id, email, db)
-                else:
-                    # No refresh token included, raise unauthorized error
-                    raise credentials_exception
-            except JWTError:
-                raise credentials_exception  # Handle JWT errors during refresh token verification
-
-        # Access token is valid, return user information
+        
         user = db.query(Users).filter(Users.email == email, Users.id == user_id).first()
+        if not user:
+            raise credentials_exception
+        
         role = get_user_role(user)
-        return {'email': email, 'id': user_id, 'role': role}
+        
+        current_time = datetime.now(timezone.utc)
+        if current_time >= datetime.fromtimestamp(token_expiry, tz=timezone.utc):
+            new_token = create_access_token(email, user_id, role, db)
+            return {'email': email, 'id': user_id, 'role': role, 'exp': new_token['exp'], 'access_token': new_token}
+        else:
+            return {'email': email, 'id': user_id, 'role': role, 'exp': token_expiry}
 
     except JWTError:
         raise credentials_exception
-
-
-def create_refresh_token(user_id: int, expires_delta: timedelta):
-    encode = {'sub': user_id, 'refresh': True}
-    expires = datetime.now(timezone.utc) + expires_delta
-    encode.update({'refresh_exp': expires})
-    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
-
-async def refresh_token_helper(refresh_token: str, user_id: int, email: str, db):
-    try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        # Verify if refresh token belongs to the same user making the request
-        if payload.get("id") != user_id:
-            raise JWTError("Invalid refresh token")
-
-        # Check refresh token expiration
-        refresh_token_expire = datetime.fromtimestamp(payload["refresh_exp"],timezone.utc)
-        if datetime.now(timezone.utc) >= refresh_token_expire:
-             new_token = create_refresh_token(email, user_id, user.role, timedelta(minutes=1))
-             user = db.query(Users).filter(Users.id == user_id).first()
-             user.exp = new_token
-             db.merge(user)
-             db.commit()
-
-        raise JWTError("Refresh token expired")
-    except:
-        pass
-        
-
 
 def get_user_role(user: Users):
     return user.role
@@ -156,8 +126,3 @@ async def get_token_authorization(authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Not authenticated.")
     token = authorization.split()[1]
     return token
-        
-        
-        
-
-
