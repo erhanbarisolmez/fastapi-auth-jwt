@@ -12,5 +12,6 @@ class Users(Base):
     registered_date = Column(DateTime, index=True )
     hashed_password = Column(String)
     role = Column(String, nullable=True, default='user') 
-    exp = Column(String, index=True, nullable=True)
+    access_token = Column(String, index=True, nullable=True)
+    refresh_token = Column(String, index=True, nullable=True)
 
