@@ -44,7 +44,7 @@ async def create_user(db: db_dependency,
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestFormCustom, Depends()],
-    db: db_dependency
+    db: db_dependency,
     ):
     
     user = authenticate_user(form_data.username, form_data.password, db)
@@ -67,7 +67,7 @@ async def login_for_access_token(
 def get_user(db: db_dependency, email: str):
     user = db.query(Users).filter(Users.email == email).first()
     if user:
-        return user
+        return "This email is already in use."
     else:
         raise HTTPException(status_code=404, detail='User not found')
     
@@ -84,7 +84,7 @@ async def get_current_user(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get('sub')
         user_id: int = payload.get('id')
-        token_expiry: str = payload.get('exp')
+        token_expiry: int = payload.get('exp')
         
         if email:
             print('Email:', email)
@@ -148,15 +148,24 @@ async def get_current_user(
         
         current_time = datetime.now(timezone.utc)
         if current_time >= datetime.fromtimestamp(token_expiry, tz=timezone.utc):
+            
             refresh_token_payload = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
             refresh_token_expiry = refresh_token_payload.get('exp')
+            
             if current_time < datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc):
-                new_access_token = create_access_token(email, user_id, role, db)
-                if new_access_token:
-                    save_token_to_db(user.id, new_access_token,user.refresh_token,db)
-                    db.merge(user)
-                    db.commit()
-                return {'email': email, 'id': user_id, 'role': role, 'access_token': new_access_token}
+                new_email = refresh_token_payload.get('sub')
+                new_user_id = refresh_token_payload.get('id')
+                new_role = refresh_token_payload.get('role')
+                new_access_token = create_access_token(new_email, new_user_id, new_role, db)
+            
+            if new_access_token and datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc):
+                print("NEW ACCESS TOKEN:", new_access_token)
+                user.access_token = new_access_token  # Update user object with new access token
+                save_token_to_db(user.id, new_access_token, user.refresh_token, db)
+                db.merge(user)
+                db.commit()
+                db.refresh(user)
+            return {'email': new_email, 'id': new_user_id, 'role': new_role, 'access_token': new_access_token}
         else:
             return {'email': email, 'id': user_id, 'role': role, 'access_token': user.access_token}
 
@@ -208,6 +217,7 @@ def save_token_to_db(user_id: int, access_token: str, refresh_token: str, db:db_
         user.refresh_token = refresh_token
         db.merge(user)
         db.commit()
+        db.refresh(user)
     else: 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='User not found')
