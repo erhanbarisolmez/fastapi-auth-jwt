@@ -31,7 +31,6 @@ class ParkUpdateSchema(BaseModel):
   isOpen: Optional[bool | None] = None
   city: Optional[str | None] = None
   enable: Optional[bool | None] = None
-  registeredDate: Optional[datetime] = None
   
 
   

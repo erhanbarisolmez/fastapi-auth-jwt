@@ -4,20 +4,23 @@ from api.deps import db_dependency, oauth2_bearer
 from schemas.parkSchema import CreateParkRequest, ParkUpdateSchema
 from schemas.authSchema import CreateUserRequest
 from models.park import Park
-from .auth import login_for_access_token, get_current_user
 from datetime import timedelta, datetime
-from fastapi.encoders import jsonable_encoder
+from api.exception import token_HTTPException, park_HTTPException, user_HTTPException
+from .auth import get_current_user
 
 router = APIRouter(prefix="/park", tags=["park"])
 
+user_dependency  = Annotated[str, Depends(get_current_user)]
 
 @router.post("/create_park", status_code=status.HTTP_201_CREATED)
 async def create_park(
     db: db_dependency,
+    user: user_dependency,
     create_park_schema: CreateParkRequest,
     token: Annotated[str, Depends(oauth2_bearer)],
 ):
-
+    
+    user_HTTPException(user)
 
     token_HTTPException(token)
 
@@ -79,21 +82,38 @@ async def update_park(
 ):
     token_HTTPException(token)
     
-    updated_park = db.query(Park).filter(Park.id == park_id).first()
+    updated_park =  db.query(Park).filter(Park.id == park_id).first()
     park_HTTPException(updated_park)
     
-    for attr, value in park_data.model_dump().items():
-        setattr(updated_park, attr, value)
-        
-        
+    
+    updated_fields = {
+        "park_name": park_data.parkName,
+        "lat": park_data.lat,
+        "lng": park_data.lng,
+        "capacity": park_data.capacity,
+        "empty_capacity": park_data.emptyCapacity,
+        "work_hours": park_data.workHours,
+        "park_type": park_data.parkType,
+        "free_time": park_data.freeTime,
+        "district": park_data.district,
+        "is_open": park_data.isOpen,
+        "city": park_data.city,
+        "enable": park_data.enable
+    }
+
+    
+    for field, value in updated_fields.items():
+        if value is not None:
+            setattr(updated_park, field, value)
     
     db.commit()
+    db.refresh(updated_park)
     
     return updated_park
 
     
 
-@router.delete("/park/{park_id}", status_code=status.HTTP_200_OK)
+@router.delete("/delete/{park_id}", status_code=status.HTTP_200_OK)
 async def delete_park(
     park_id: int,
     token:Annotated[str, Depends(oauth2_bearer)],
@@ -108,17 +128,3 @@ async def delete_park(
     db.commit()
     
     return park
-
-def token_HTTPException(token):
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token is invalid or expired.",
-        )
-
-def park_HTTPException(park):
-    if not park:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Park not found"
-        )

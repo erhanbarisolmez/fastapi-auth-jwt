@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 from schemas.authSchema import CreateUserRequest, Token
 from api.deps import db_dependency, oauth2_bearer, OAuth2PasswordRequestFormCustom
 
+
 router = APIRouter(
     prefix='/auth',
     tags=['auth']
