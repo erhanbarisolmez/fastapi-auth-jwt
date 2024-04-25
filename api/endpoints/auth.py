@@ -17,7 +17,7 @@ router = APIRouter(
 SECRET_KEY = '09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7'
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 1
-REFRESH_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES + 2 
+REFRESH_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES + 5
 
 bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
 
@@ -72,6 +72,7 @@ def get_user(db: db_dependency, email: str):
     else:
         raise HTTPException(status_code=404, detail='User not found')
     
+@router.get("/check-token-get_current_user")
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_bearer)],
     db: db_dependency
@@ -87,63 +88,12 @@ async def get_current_user(
         user_id: int = payload.get('id')
         token_expiry: int = payload.get('exp')
         
-        if email:
-            print('Email:', email)
-        else:
-            print('Email bulunamadı!')
-        if user_id: 
-            print('ID', user_id)
-        else:
-            print('id yok')
-        if token_expiry: 
-            print('Token', token_expiry)
-        else:
-            print('Token yok')
-        
         user = db.query(Users).filter(Users.email == email, Users.id == user_id).first()
         if not user:
             raise credentials_exception
 
         if email is None or user_id is None:
             raise credentials_exception
-        
-        # # Refresh Token 
-        # payload_refresh = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        # email: str = payload_refresh.get('sub')
-        # user_id: int = payload_refresh.get('id')
-        # token_expiry: str = payload_refresh.get('exp')
-        
-        # if email:
-        #     print('Refresh Email:', email)
-        # else:
-        #     print('Email bulunamadı!')
-        # if user_id: 
-        #     print('Refresh ID', user_id)
-        # else:
-        #     print('id yok')
-        # if token_expiry: 
-        #     print('Refresh Token', token_expiry)
-        # else:
-        #     print('Token yok')
-            
-        # # Access Token 
-        # payload_access = jwt.decode(user.access_token, SECRET_KEY, algorithms=[ALGORITHM])
-        # email: str = payload_access.get('sub')
-        # user_id: int = payload_access.get('id')
-        # token_expiry: str = payload_access.get('exp')
-        
-        # if email:
-        #     print('Access Email:', email)
-        # else:
-        #     print('Email bulunamadı!')
-        # if user_id: 
-        #     print('Access ID', user_id)
-        # else:
-        #     print('id yok')
-        # if token_expiry: 
-        #     print('Access Token', token_expiry)
-        # else:
-        #     print('Token yok')
         
         role = get_user_role(user)
         
@@ -152,39 +102,35 @@ async def get_current_user(
             
             refresh_token_payload = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
             refresh_token_expiry = refresh_token_payload.get('exp')
-            
+
             if current_time < datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc):
                 new_email = refresh_token_payload.get('sub')
                 new_user_id = refresh_token_payload.get('id')
                 new_role = refresh_token_payload.get('role')
                 new_access_token = create_access_token(new_email, new_user_id, new_role, db)
             
-            if new_access_token and datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc):
+            if new_access_token and datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc) > datetime.fromtimestamp(token_expiry, tz=timezone.utc):
                 print("NEW ACCESS TOKEN:", new_access_token)
                 user.access_token = new_access_token  # Update user object with new access token
+                
+                new_access_token_payload = jwt.decode(new_access_token, SECRET_KEY, algorithms=[ALGORITHM])
+                new_access_token_expiry = new_access_token_payload.get('exp')
+                print("token expiry before ", token_expiry)
+
+                if new_access_token_expiry > token_expiry:
+                    token_expiry = new_access_token_expiry
+                    print("New access_token exp: ", token_expiry)
+    
                 save_token_to_db(user.id, new_access_token, user.refresh_token, db)
-                db.merge(user)
                 db.commit()
                 db.refresh(user)
-            return {'email': new_email, 'id': new_user_id, 'role': new_role, 'access_token': new_access_token}
+            return {'email': new_email, 'id': new_user_id, 'role': new_role, 'access_token': new_access_token, 'refresh_token': refresh_token_payload}
         else:
             return {'email': email, 'id': user_id, 'role': role, 'access_token': user.access_token}
 
     except JWTError:
         raise credentials_exception
-
-def get_user_role(user: Users):
-    return user.role
-
-
-def authenticate_user(email:str, password:str, db):
-    user = db.query(Users).filter(Users.email == email).first()
-    if not user:
-        return False
-    if not bcrypt_context.verify(password, user.hashed_password):
-        return False
-    return user
-
+    
 def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     encoded_jwt = jwt.encode({'sub': email, 'id': user_id, 'role': role, 'exp': expire.timestamp()}, SECRET_KEY, algorithm=ALGORITHM)
@@ -222,6 +168,20 @@ def save_token_to_db(user_id: int, access_token: str, refresh_token: str, db:db_
     else: 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='User not found')
+
+def get_user_role(user: Users):
+    return user.role
+
+
+def authenticate_user(email:str, password:str, db):
+    user = db.query(Users).filter(Users.email == email).first()
+    if not user:
+        return False
+    if not bcrypt_context.verify(password, user.hashed_password):
+        return False
+    return user
+
+
         
 
 
