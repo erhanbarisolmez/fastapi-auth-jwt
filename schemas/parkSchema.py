@@ -15,7 +15,7 @@ class CreateParkRequest(BaseModel):
   isOpen: bool | None = None
   city: str | None = None
   enable: bool | None = None
-  registeredDate: Optional[datetime]
+  registeredDate: Optional[datetime] = datetime.now()
   
   
 class ParkUpdateSchema(BaseModel):

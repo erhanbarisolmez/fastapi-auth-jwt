@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from schemas.authSchema import CreateUserRequest, Token
 from api.deps import db_dependency, oauth2_bearer, OAuth2PasswordRequestFormCustom
-
+from ..exception import token_HTTPException
 
 router = APIRouter(
     prefix='/auth',
@@ -24,10 +24,14 @@ bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
 @router.post("/create_user", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency,
                       create_user_request: CreateUserRequest,
-                      create_token: Token ):
-    role = create_user_request.role
-    if role is None:
-        role = 'user'
+                      create_token: Token,
+                      token: Annotated[str, Depends(oauth2_bearer)]):
+    
+    token_HTTPException(token)
+    
+    role = create_user_request.role or "user" # or "user"
+    # if role is None:
+    #     role = 'user'
     create_user_model=Users(
         first_name = create_user_request.firstName,
         last_name = create_user_request.lastName,
@@ -54,6 +58,7 @@ async def login_for_access_token(
                             detail='Could not validate user.')
     
     role = get_user_role(user)
+    invalidate_old_tokens(user, db)
     access_token = create_access_token(user.email, user.id, role, db)
     refresh_token = create_refresh_token(user.email, user.id, role, db)
     
@@ -62,17 +67,23 @@ async def login_for_access_token(
     else:
         raise HTTPException(status_code=401, detail='Token creation failed')
     
-    return {'access_token': access_token, 'token_type': 'bearer', 'role': role, 'refresh_token': refresh_token}
+    return {
+        'access_token': access_token,
+        'token_type': 'bearer',
+        'role': role,
+        'refresh_token': refresh_token
+        }
 
 @router.get("/email-control")
-def get_user(db: db_dependency, email: str):
+def get_user(db: db_dependency, email: str, token: Annotated[str, Depends(oauth2_bearer)]):
+    token_HTTPException(token)
     user = db.query(Users).filter(Users.email == email).first()
     if user:
         return "This email is already in use."
     else:
         raise HTTPException(status_code=404, detail='User not found')
     
-@router.get("/check-token-get_current_user")
+@router.get("/get_current_user")
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_bearer)],
     db: db_dependency
@@ -98,8 +109,8 @@ async def get_current_user(
         role = get_user_role(user)
         
         current_time = datetime.now(timezone.utc)
-        if current_time >= datetime.fromtimestamp(token_expiry, tz=timezone.utc):
-            
+        if current_time >= datetime.fromtimestamp(token_expiry, tz=timezone.utc) - timedelta (minutes=REFRESH_TOKEN_EXPIRE_MINUTES):
+            # Token süresi geçtiyse ve refresh token süresine daha varsa
             refresh_token_payload = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
             refresh_token_expiry = refresh_token_payload.get('exp')
 
@@ -108,28 +119,38 @@ async def get_current_user(
                 new_user_id = refresh_token_payload.get('id')
                 new_role = refresh_token_payload.get('role')
                 new_access_token = create_access_token(new_email, new_user_id, new_role, db)
-            
-            if new_access_token and datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc) > datetime.fromtimestamp(token_expiry, tz=timezone.utc):
-                print("NEW ACCESS TOKEN:", new_access_token)
-                user.access_token = new_access_token  # Update user object with new access token
-                
-                new_access_token_payload = jwt.decode(new_access_token, SECRET_KEY, algorithms=[ALGORITHM])
-                new_access_token_expiry = new_access_token_payload.get('exp')
-                print("token expiry before ", token_expiry)
+                new_refresh_token = create_refresh_token(new_email, new_user_id, new_role, db)
 
-                if new_access_token_expiry > token_expiry:
-                    token_expiry = new_access_token_expiry
-                    print("New access_token exp: ", token_expiry)
-    
-                save_token_to_db(user.id, new_access_token, user.refresh_token, db)
+                user.access_token = new_access_token
+                user.refresh_token = new_refresh_token
+                save_token_to_db(user.id, new_access_token, new_refresh_token, db)
                 db.commit()
                 db.refresh(user)
-            return {'email': new_email, 'id': new_user_id, 'role': new_role, 'access_token': new_access_token, 'refresh_token': refresh_token_payload}
-        else:
-            return {'email': email, 'id': user_id, 'role': role, 'access_token': user.access_token}
+                
+                # Yeni tokeni Authorization başlığı olarak ekleyin
+                response_headers = {"Authorization": f"Bearer {new_access_token}"}
+
+                return {
+                    "access_token": new_access_token,
+                    "refresh_token": new_refresh_token
+                }, response_headers
+            
+        # Eğer token yenilenmediyse, mevcut tokeni döndür
+        return {
+            "access_token": token
+        }
 
     except JWTError:
         raise credentials_exception
+
+
+
+def invalidate_old_tokens(user: Users, db: db_dependency):
+    user.access_token = None
+    user.refresh_token = None
+    db.merge(user)
+    db.commit()
+    db.refresh(user)
     
 def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
