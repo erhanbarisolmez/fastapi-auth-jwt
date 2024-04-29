@@ -12,6 +12,7 @@ class CreateUserRequest(BaseModel):
     role: str  = "user"
     access_token: Optional[str | None]=None
     refresh_token: Optional[str | None]=None
+    token_expiry: Optional[str | None] = None
 
 class Token(BaseModel):
     access_token: str

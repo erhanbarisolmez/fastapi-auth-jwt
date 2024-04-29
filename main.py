@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from db.database import engine, Base
 from models import park
 from api.main import api_router
 from fastapi.middleware.cors import CORSMiddleware
+from api.middleware import refresh_token_middleware
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,6 +21,12 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def apply_refresh_token_middleware(request: Request, call_next):
+    response = await refresh_token_middleware(request, call_next)
+    print(response.headers)
+    return response
 
 app.include_router(api_router)
 

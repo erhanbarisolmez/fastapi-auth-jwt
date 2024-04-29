@@ -14,4 +14,5 @@ class Users(Base):
     role = Column(String, nullable=True, default='user') 
     access_token = Column(String, index=True, nullable=True)
     refresh_token = Column(String, index=True, nullable=True)
+    token_expiry = Column(String, index=True, nullable=True)
 
