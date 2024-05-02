@@ -1,5 +1,5 @@
 from db.database import Base
-from sqlalchemy import Column, Integer, String,DateTime
+from sqlalchemy import Column, Integer, String,DateTime,func
 
 class Users(Base):
     __tablename__ ='users'
@@ -14,5 +14,5 @@ class Users(Base):
     role = Column(String, nullable=True, default='user') 
     access_token = Column(String, index=True, nullable=True)
     refresh_token = Column(String, index=True, nullable=True)
-    token_expiry = Column(String, index=True, nullable=True)
+    token_expiry = Column(DateTime,index=True, default=func.now())
 

@@ -59,13 +59,15 @@ async def login_for_access_token(
                             detail='Could not validate user.')
     
     role = get_user_role(user)
-    invalidate_old_tokens(user, db)
+    invalidate_old_tokens(user, db) # oturumu sonlandırır yeni tokenları oluşturur
     access_token = create_access_token(user.email, user.id, role, db)
     refresh_token = create_refresh_token(user.email, user.id, role, db)
+    access_token_payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+    access_token_expires = datetime.fromtimestamp(access_token_payload.get("exp"))
     
 
     if access_token and refresh_token:
-        save_token_to_db(user.id, access_token, refresh_token, None, db)
+        save_token_to_db(user.id, access_token, refresh_token, access_token_expires, db)
     else:
         raise HTTPException(status_code=401, detail='Token creation failed')
     
@@ -154,6 +156,7 @@ async def refresh_token(
     
     if current_user:
         new_token = refresh_access_token(current_user.email, current_user.token_expiry, db)
+        print("refresh_token - ",new_token)
         if new_token:
             return new_token
         else:

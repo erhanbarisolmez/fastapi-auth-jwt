@@ -1,34 +1,24 @@
 from .utils.conf import ALGORITHM,SECRET_KEY, REFRESH_TOKEN_EXPIRE_MINUTES, ACCESS_TOKEN_EXPIRE_MINUTES
 from .utils.token import create_access_token, create_refresh_token
 
-from fastapi import Request
+from fastapi import Request, Depends
 from fastapi.responses import Response
 from jose import jwt, JWTError
 from datetime import datetime,timedelta, timezone
 from fastapi.routing import APIRoute
+from typing import Annotated
 
-async def refresh_token_middleware(request: Request, call_next):
+from .exception import token_HTTPException
+from .endpoints.auth import get_token_authorization
+from .deps import oauth2_bearer
+async def refresh_token_middleware(request: Request, call_next, token:  Annotated[str, Depends(oauth2_bearer)]):
   print("Middleware çalıştı")
+
+  token_HTTPException(token)
+  token_value = await get_token_authorization()
   response = await call_next(request)
-  if "Authorization" in response.headers:
-    authorization = response.headers["Authorization"]
-    if authorization.startswith("Bearer"):
-      token = authorization.split()[1]
-   
-      try: 
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        exp = payload.get("exp")
-        if exp is not None:
-          exp_datetime = datetime.fromtimestamp(exp)
-          now = datetime.now()
-          if now + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES) >= exp_datetime:
-            if  now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  >= exp_datetime:
-              new_token = create_access_token(data=payload)
-            new_refresh_token = create_refresh_token(data=payload)
-            
-            response.headers["X-New-Token"] = new_token
-            response.headers["X-Refresh-Token"] = new_refresh_token
-            print(response["X-New-Token"])
-      except JWTError:
-        JWTError(print(f"Invalid token : {token}"))
+  
+  response.headers["X-Access-Token"] = token_value["access_token"]
+  response.headers["X-Refresh-Token"] = token_value["refresh_token"]
+      
   return response
