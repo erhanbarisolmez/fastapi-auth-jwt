@@ -63,7 +63,7 @@ async def login_for_access_token(
     access_token = create_access_token(user.email, user.id, role, db)
     refresh_token = create_refresh_token(user.email, user.id, role, db)
     access_token_payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
-    access_token_expires = datetime.fromtimestamp(access_token_payload.get("exp"))
+    access_token_expires = datetime.fromtimestamp(access_token_payload.get("exp"), tz=timezone.utc)
     
 
     if access_token and refresh_token:
@@ -102,9 +102,9 @@ async def get_current_user(
         email: str = payload.get('sub')
         user_id: int = payload.get('id')
         role: str = payload.get('role')
-        
         user = db.query(Users).filter(Users.email == email, Users.id == user_id).first()
-        
+        refresh_token_payload = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        refresh_token_expiry = datetime.fromtimestamp(refresh_token_payload.get("exp"))  
         if not user:
             raise credentials_exception
 
@@ -113,6 +113,30 @@ async def get_current_user(
         
         role = get_user_role(user)
         
+        
+        current_time= datetime.now()
+        print("Current Time-",current_time)
+        print("refresh_token_expiry", refresh_token_expiry)
+        if current_time < user.token_expiry:
+            print("current <",current_time)
+            print("token ex if ", user.token_expiry)
+            return user
+        
+        # refresh token_expiry !
+        if current_time< refresh_token_expiry:
+            new_access_token  = create_access_token(email, user_id, role, db)
+            new_access_token_payload = jwt.decode(new_access_token, SECRET_KEY, algorithms=[ALGORITHM])
+            new_access_token_exp = datetime.fromtimestamp(new_access_token_payload.get("exp"), tz=timezone.utc)
+            print("new_access_token___", new_access_token_exp)
+            refresh_token_expiry = datetime.fromtimestamp(refresh_token_payload.get("exp"), tz=timezone.utc)
+            print("refresh_UTC", refresh_token_expiry)
+            save_token_to_db(user_id, new_access_token, user.refresh_token,new_access_token_exp, db)
+            
+            
+            response_headers ={"Authorization": f"Bearer {new_access_token}"}
+            return new_access_token, response_headers
+            
+        raise credentials_exception
         # current_time = datetime.now(timezone.utc)
         # if current_time < datetime.fromtimestamp(token_expiry, tz=timezone.utc) - timedelta (minutes=REFRESH_TOKEN_EXPIRE_MINUTES):
         #     # Token süresi geçtiyse ve refresh token süresine daha varsa
@@ -145,7 +169,7 @@ async def get_current_user(
         #     "access_token": token
         # }
         
-        return user
+        
     except JWTError:
         raise credentials_exception
 
@@ -183,5 +207,3 @@ async def get_token_authorization(authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Not authenticated.")
     token = authorization.split()[1]
     return token
-
- 

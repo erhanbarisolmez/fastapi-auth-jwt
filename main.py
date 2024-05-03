@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import APIRouter, FastAPI, Request, HTTPException, status
 from db.database import engine, Base
 from models import park
 from api.main import api_router
@@ -22,14 +22,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def apply_refresh_token_middleware(request: Request, call_next):
-    authorization_header  = request.headers.get("Authorization")
-    if not authorization_header or not authorization_header.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing or invalid")
-    response = await refresh_token_middleware(request, call_next, token=authorization_header)
-    print(response.headers)
-    return response
+# @app.middleware("http")
+# async def apply_refresh_token_middleware(request: Request, call_next):
+#     authorization_header  = request.headers.get("Authorization")
+#     if not authorization_header or not authorization_header.startswith("Bearer "):
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing or invalid")
+#     response = await refresh_token_middleware(request, call_next, token=authorization_header)
+#     print(response.headers)
+#     return response
+
+
 
 app.include_router(api_router)
+
 

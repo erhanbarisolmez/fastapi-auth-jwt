@@ -16,7 +16,7 @@ def invalidate_old_tokens(user: Users, db: db_dependency):
 
 
 def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
-    access_token_expires = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     print(f"create_access_token  - {access_token_expires}")
     payload = {
       "sub": email,
@@ -28,8 +28,8 @@ def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
     return encoded_jwt
 
 def create_refresh_token(email: str, user_id: int, role: str, db: db_dependency):
-    refresh_token_expires = datetime.now(timezone.utc) + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
-    print(f"create_refresh_token  - {refresh_access_token}")
+    refresh_token_expires = datetime.now() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    print(f"create_refresh_token  - {refresh_token_expires}")
     payload = {
       "sub": email,
       "id": user_id,
@@ -53,9 +53,9 @@ def refresh_access_token(email: str, token_expiry: datetime, db: db_dependency):
         access_token_payload = jwt.decode(user.access_token, SECRET_KEY, algorithms=[ALGORITHM])
         token_expiry = datetime.fromtimestamp(access_token_payload.get("exp"))
         
-        print(f"refresh_access_token: current_time: ${current_time}")
-        print(f"refresh_access_token: access_token_expiry: ${token_expiry}")
-        print(f"refresh_access_token: refresh_token_expiry: ${refresh_token_expiry}")
+        # print(f"refresh_access_token: current_time: ${current_time}")
+        # print(f"refresh_access_token: access_token_expiry: ${token_expiry}")
+        # print(f"refresh_access_token: refresh_token_expiry: ${refresh_token_expiry}")
         print("--------------------------------------------------------------------")
         refresh_token_is_valid = current_time < refresh_token_expiry
         print(f"refresh_token_is_valid: ${refresh_token_is_valid}")
@@ -80,17 +80,17 @@ def refresh_access_token(email: str, token_expiry: datetime, db: db_dependency):
             # Update the users table with the
             # new access token and remove old tokens
             
-                user.access_token = new_access_token
-                user.token_expiry = new_access_token_expiry
+              
                 save_token_to_db(user.id, new_access_token, user.refresh_token, new_access_token_expiry, db)
 
                 print("******************************************************")
-                print(f"new_access_token > current_time  -   user.access_token: ${new_access_token}")
+                print(f"new_access_token > current_time  -   user.access_token: ${new_access_token_expiry}")
+                print("-----------------------------------------------------------")
                 print(f"new_access_token > current_time  -   user.token_expiry: ${new_access_token_expiry}")
                 print("******************************************************")
 
             
-                return {"access_token": new_access_token, "refresh_token": user.refresh_token_expiry}
+                return {"access_token": new_access_token, "refresh_token": user.refresh_token}
             else:
                 invalidate_old_tokens(user, db)
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access token expired")
