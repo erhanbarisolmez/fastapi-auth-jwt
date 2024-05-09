@@ -73,7 +73,7 @@ async def read_park_all(
     
     return park_list
 
-@router.put("/update_park/{park_id}", status_code=status.HTTP_200_OK,  response_model=ParkUpdateSchema)
+@router.put("/update_park/{park_id}", status_code=status.HTTP_200_OK)
 async def update_park(
     park_id: int,
     park_data: Annotated[dict, Body(...), Depends(ParkUpdateSchema)],
@@ -100,11 +100,11 @@ async def update_park(
         "city": park_data.city,
         "enable": park_data.enable
     }
-
     
     for field, value in updated_fields.items():
         if value is not None:
             setattr(updated_park, field, value)
+    
     
     db.commit()
     db.refresh(updated_park)
