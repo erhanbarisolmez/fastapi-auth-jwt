@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 from schemas.authSchema import CreateUserRequest, Token
 from api.deps import db_dependency, oauth2_bearer, OAuth2PasswordRequestFormCustom
 from api.exception import token_HTTPException
-from api.utils.conf import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY, REFRESH_TOKEN_EXPIRE_MINUTES
+from api.utils.conf import  ALGORITHM, SECRET_KEY
 from ..utils.token import refresh_access_token,create_access_token,create_refresh_token,invalidate_old_tokens, save_token_to_db
 from models.users import Users
 
@@ -25,10 +25,10 @@ bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
 async def create_user(db: db_dependency,
                       create_user_request: CreateUserRequest,
                       create_token: Token,
-                    #   token: Annotated[str, Depends(oauth2_bearer)]
+                      token: Annotated[str, Depends(oauth2_bearer)]
                       ):
     
-    # token_HTTPException(token)
+    token_HTTPException(token)
     
     role = create_user_request.role or "user" # or "user"
     # if role is None:
@@ -122,7 +122,6 @@ async def get_current_user(
             print("token ex if ", user.token_expiry)
             return user
         
-        # refresh token_expiry !
         if current_time< refresh_token_expiry:
             new_access_token  = create_access_token(email, user_id, role, db)
             new_access_token_payload = jwt.decode(new_access_token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -136,39 +135,7 @@ async def get_current_user(
             response_headers ={"Authorization": f"Bearer {new_access_token}"}
             return new_access_token, response_headers
             
-        raise credentials_exception
-        # current_time = datetime.now(timezone.utc)
-        # if current_time < datetime.fromtimestamp(token_expiry, tz=timezone.utc) - timedelta (minutes=REFRESH_TOKEN_EXPIRE_MINUTES):
-        #     # Token süresi geçtiyse ve refresh token süresine daha varsa
-        #     refresh_token_payload = jwt.decode(user.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        #     refresh_token_expiry = refresh_token_payload.get('exp')
-
-        #     if current_time < datetime.fromtimestamp(refresh_token_expiry, tz=timezone.utc):
-        #         new_email = refresh_token_payload.get('sub')
-        #         new_user_id = refresh_token_payload.get('id')
-        #         new_role = refresh_token_payload.get('role')
-        #         new_access_token = create_access_token(new_email, new_user_id, new_role, db)
-        #         new_refresh_token = create_refresh_token(new_email, new_user_id, new_role, db)
-
-        #         user.access_token = new_access_token
-        #         user.refresh_token = new_refresh_token
-        #         save_token_to_db(user.id, new_access_token, new_refresh_token, db)
-        #         db.commit()
-        #         db.refresh(user)
-                
-        #         # Yeni tokeni Authorization başlığı olarak ekleyin
-        #         response_headers = {"Authorization": f"Bearer {new_access_token}"}
-                
-        #         return {
-        #             "access_token": new_access_token,
-        #             "refresh_token": new_refresh_token
-        #         }, response_headers
-            
-        # # Eğer token yenilenmediyse, mevcut tokeni döndür
-        # return {
-        #     "access_token": token
-        # }
-        
+        raise credentials_exception        
         
     except JWTError:
         raise credentials_exception

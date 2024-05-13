@@ -48,9 +48,11 @@ async def create_park(
 @router.get("/read_park/{park_id}", status_code=status.HTTP_200_OK)
 async def read_park_id(
     park_id: int,
+    user: user_dependency,
     token: Annotated[str, Depends(oauth2_bearer)],
     db:db_dependency):
     
+    user_HTTPException(user)
     token_HTTPException(token)
     
     park = db.query(Park).filter(Park.id == park_id).first()
@@ -64,9 +66,11 @@ async def read_park_id(
 @router.get("/read_park_all", status_code=status.HTTP_200_OK)
 async def read_park_all(
     db:db_dependency,
+    user: user_dependency,
     token: Annotated[str, Depends(oauth2_bearer)],
 ):
     
+    user_HTTPException(user)
     token_HTTPException(token)
     
     park_list = db.query(Park).all()
@@ -76,10 +80,12 @@ async def read_park_all(
 @router.put("/update_park/{park_id}", status_code=status.HTTP_200_OK)
 async def update_park(
     park_id: int,
+    user:user_dependency,
     park_data: Annotated[dict, Body(...), Depends(ParkUpdateSchema)],
     token: Annotated[str, Depends(oauth2_bearer)],
     db: db_dependency
 ):
+    user_HTTPException(user)
     token_HTTPException(token)
     
     updated_park =  db.query(Park).filter(Park.id == park_id).first()
@@ -117,8 +123,10 @@ async def update_park(
 async def delete_park(
     park_id: int,
     token:Annotated[str, Depends(oauth2_bearer)],
-    db: db_dependency):
-    
+    db: db_dependency,
+    user: user_dependency):
+
+    user_HTTPException(user)
     token_HTTPException(token)
     
     park = db.query(Park).filter(Park.id == park_id).first()

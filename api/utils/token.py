@@ -28,7 +28,7 @@ def create_access_token(email: str, user_id: int, role: str, db: db_dependency):
     return encoded_jwt
 
 def create_refresh_token(email: str, user_id: int, role: str, db: db_dependency):
-    refresh_token_expires = datetime.now() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = datetime.now(tz=timezone.utc) + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
     print(f"create_refresh_token  - {refresh_token_expires}")
     payload = {
       "sub": email,
