@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import APIRouter, FastAPI, Request, HTTPException, status
 from db.database import engine, Base
 from models import park
@@ -36,3 +37,5 @@ app.add_middleware(
 app.include_router(api_router)
 
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
