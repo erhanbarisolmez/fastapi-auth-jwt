@@ -1,15 +1,9 @@
 {
-  "devCommand": "python3 main.py",
-  "builds":[
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python3"
-    }
+
+  "builds": [
+    { "src": "main.py", "use": "@now/python" }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
+    { "src": "/(.*)", "dest": "/main.py" }
   ]
 }
