@@ -29,7 +29,7 @@ app.add_middleware(
 app.include_router(api_router)
 
 def run_app():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000 )
 
 def socket_camera():
     uvicorn.run(socket, host="0.0.0.0", port=8001)
