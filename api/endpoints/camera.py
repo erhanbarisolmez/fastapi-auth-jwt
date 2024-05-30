@@ -1,8 +1,7 @@
-
-
 from typing import List
 from fastapi import APIRouter
 from camera.main import devices
+import cv2
 
 
 router = APIRouter(
@@ -18,5 +17,18 @@ async def get_devices():
 
 @router.get("/open/{device_id}")
 async def open_camera(device_id: str):
-  
-  return {"message": f"Kamera {device_id} başarıyla açıldı"}
+  """Open the camera for the specified device."""
+  cap = cv2.VideoCapture(0)
+  if not cap.isOpened():
+    return {"error": "cannot open camera"}
+  while True:
+    ret, frame = cap.read()
+    if not ret:
+      break
+    cv2.imshow("Camera", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+      break
+    
+  cap.release()
+  cv2.destroyAllWindows()
+  return {"status": "Camera closed"}
