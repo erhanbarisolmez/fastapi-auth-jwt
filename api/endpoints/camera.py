@@ -8,6 +8,7 @@ import re
 import json
 import socket
 import threading
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -113,10 +114,11 @@ async def open_camera(ip_address: str):
     cv2.imshow("Camera", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
       break
-    # if ip_address:
-    #     image_path = f"captured_image_{ip_address}.jpg"
-    #     cv2.imwrite(image_path, frame)
-    #     return {"status": "Image captured", "image_path": image_path}
+    if ip_address:
+        save_directory = Path("camera/images/")
+        image_path = save_directory / f"camera_{ip_address}.jpg"
+        cv2.imwrite(str(image_path), frame)
+        return {"status": "Image captured", "image_path": str(image_path)}
   cap.release()
   cv2.destroyAllWindows()
   return {"status": "Camera closed"}
